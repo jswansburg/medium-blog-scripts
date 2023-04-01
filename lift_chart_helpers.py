@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 
+
 def get_column_name_mappings(project_id) -> dict:
     """
     Returns a dictionary of column name mappings based on the project type.
@@ -24,15 +25,16 @@ def get_column_name_mappings(project_id) -> dict:
         }
     else:
         name_mappings = {
-            f"{target}_{positive_class}_PREDICTION": "Class_1_Prediction",
-            f"{target}_PREDICTION": "Prediction",
+            # f"{target}_{positive_class}_PREDICTION": "Class_1_Prediction",
+            # f"{target}_PREDICTION": "Prediction",
+            f"class_{positive_class}"
         }
 
     return name_mappings
 
 
 def add_bins_to_data(
-    model_id: str,
+    project_id: str,
     df: pd.DataFrame,
     bins: int = 10,
     data_subset: str = dr.enums.DATA_SUBSET.HOLDOUT,
@@ -49,9 +51,8 @@ def add_bins_to_data(
     Returns:
         pd.DataFrame: The modified DataFrame with bins added.
     """
-    project = dr.Project.get(model.project.id)
-    col = list(get_column_name_mappings(project.id).values())[0]
-    df = df.loc[~pd.isna(df["Prediction"]), :].reset_index(drop=True)
+    col = list(get_column_name_mappings(project_id))[0]
+    df = df.loc[~pd.isna(df[col]), :].reset_index(drop=True)
 
     df["bins"] = pd.qcut(
         df[col],
@@ -64,7 +65,6 @@ def add_bins_to_data(
     func = {col: mean, "actuals": mean}
 
     return df, func
-
 
 
 def group_data_by_bins(
@@ -105,7 +105,6 @@ def group_data_by_bins(
 
 def plot_lift_chart(
     df: pd.DataFrame,
-    column_name_mappings: dict,
 ) -> go.Figure:
     """
     Plots a lift chart using a DataFrame with grouped data by bins.
@@ -196,7 +195,7 @@ def plot_lift_chart(
 
 def get_prediction_explanations_per_bin(
     df: pd.DataFrame,
-    model_id: str,
+    project_id: str,
     max_features: int = 5,
     **kwargs,
 ) -> pd.DataFrame:
@@ -206,7 +205,7 @@ def get_prediction_explanations_per_bin(
 
     Args:
         df (pd.DataFrame): DataFrame containing feature strengths and values.
-        model_id (str): Model identifier.
+        project_id (str): Project identifier.
         max_features (int, optional): Maximum number of features to keep. Defaults to 5.
         **kwargs: Additional keyword arguments.
 
@@ -216,17 +215,17 @@ def get_prediction_explanations_per_bin(
 
     # Calculate the sum of absolute feature strengths for each feature
     ranked_features = (
-        df.groupby("feature_name")["feature_strength"]
+        df.groupby("feature_name")["strength"]
         .apply(lambda x: np.abs(x).sum())
         .reset_index()
-        .sort_values(by="feature_strength", ascending=True)
+        .sort_values(by="strength", ascending=True)
     )
 
     # Keep only the top max_features features
     features_to_keep = ranked_features[-max_features:]["feature_name"]
     
     # Add bins to the data
-    binned_data, _ = add_bins_to_data(model_id, df, bins=10, **kwargs)
+    binned_data, _ = add_bins_to_data(project_id, df, bins=10, **kwargs)
 
     # Define a function to compute the median if possible, otherwise return the mode
     def try_mean_else_mode(x):
@@ -238,18 +237,18 @@ def get_prediction_explanations_per_bin(
     # Group the binned data by 'bins' and 'feature_name', then aggregate
     grouped = (
         binned_data.groupby(["bins", "feature_name"])[
-            "feature_strength", "feature_value"
+            "strength", "actual_value"
         ]
         .agg(
-            feature_strength=("feature_strength", "sum"),
-            feature_value=("feature_value", try_mean_else_mode),
+            strength=("strength", "sum"),
+            actual_value=("actual_value", try_mean_else_mode),
         )
-        .sort_values(by="feature_strength", ascending=True)
+        .sort_values(by="strength", ascending=True)
         .reset_index()
     )
 
     # Filter the grouped data by keeping only the top features
-    filtered_df = grouped.loc[grouped["feature_name"].isin(features_to_keep), :]
+    filtered_df = grouped.loc[grouped["feature_name"].isin(features_to_keep), :].copy()
     
     # Increment the 'bins' column values by 1
     filtered_df["bins"] += 1
@@ -259,8 +258,11 @@ def get_prediction_explanations_per_bin(
 
 def plot_prediction_explanations_and_lift_chart(
     df: pd.DataFrame,
-    grouped_df: pd.DataFrame,
+    # grouped_df: pd.DataFrame,
     project_id: str,
+    bins: int=10,
+    max_features: int=5,
+    showlegend: bool=False,
     **kwargs,
 ):
     """
@@ -270,11 +272,15 @@ def plot_prediction_explanations_and_lift_chart(
         df (pd.DataFrame): DataFrame containing feature strengths and values.
         grouped_df (pd.DataFrame): DataFrame containing aggregated feature strengths and values per bin.
         project_id (str): Project identifier.
+        bins (int): Number of bins in the lift plot.
         **kwargs: Additional keyword arguments.
 
     Returns:
         plotly.graph_objs.Figure: The generated Plotly figure.
     """
+    binned, func = add_bins_to_data(project_id, df, bins=bins)
+    df1 = group_data_by_bins(binned, project_id, func)
+    df2 = get_prediction_explanations_per_bin(df, project_id, max_features=max_features)
 
     DEFAULT_HOVER_LABEL = dict(
         bgcolor="white", font_size=16, font_family="Rockwell", namelength=-1
@@ -282,13 +288,13 @@ def plot_prediction_explanations_and_lift_chart(
     
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
-    col = list(get_column_name_mappings(project_id).values())[0]
+    col = list(get_column_name_mappings(project_id))[0]
     
     # Add predictions
     fig.add_trace(
         go.Scatter(
-            x=grouped_df["bins"],
-            y=grouped_df[col],
+            x=df1["bins"],
+            y=df1[col],
             mode="lines+markers",
             name="Predictions",
             marker=dict(
@@ -311,8 +317,8 @@ def plot_prediction_explanations_and_lift_chart(
     # Add actuals
     fig.add_trace(
         go.Scatter(
-            x=grouped_df["bins"],
-            y=grouped_df["actuals"],
+            x=df1["bins"],
+            y=df1["actuals"],
             mode="lines+markers",
             name="Actuals",
             marker=dict(
@@ -354,26 +360,26 @@ def plot_prediction_explanations_and_lift_chart(
     )
     
     # Add bins
-    features = np.sort(df["feature_name"].unique())
+    features = np.sort(df2["feature_name"].unique())
     colors = px.colors.qualitative.Plotly[0 : len(features)]
     marker_color = {column: color for column, color in zip(features, colors * 5)}
 
     for trace in features:
-        dft = df[df["feature_name"] == trace]
+        dft = df2[df2["feature_name"] == trace]
         median_val = (
             "<br>Most Frequent Value</b>: %{customdata[0]}"
-            if isinstance(dft["feature_value"].iloc[0], str)
+            if isinstance(dft["actual_value"].iloc[0], str)
             else "<br>Median Value</b>: %{customdata[0]: .3}"
         )
         fig.add_traces(
             go.Bar(
                 x=dft["bins"],
-                y=dft["feature_strength"],
+                y=dft["strength"],
                 name=trace,
                 marker_color=marker_color[trace],
                 opacity=0.5,
                 customdata=dft[
-                    ["feature_value", "feature_strength", "feature_name"]
+                    ["actual_value", "strength", "feature_name"]
                 ],
                 hovertemplate="<br>Bin</b>: %{x}"
                 + "<br>Feature</b>: %{customdata[2]}"
@@ -392,6 +398,6 @@ def plot_prediction_explanations_and_lift_chart(
         legend_title="Features: ",
         hoverlabel=DEFAULT_HOVER_LABEL,
     )
-    fig.update_layout(showlegend=False)
+    fig.update_layout(showlegend=showlegend)
 
     return fig

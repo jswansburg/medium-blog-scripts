@@ -22,7 +22,7 @@ def prep_feature_impact(
     Parameters
     ----------
     df : pd.DataFrame
-        Input DataFrame containing 'feature_name' and 'feature_strength' columns.
+        Input DataFrame containing 'feature_name' and 'strength' columns.
     n : int, optional, default=25
         Number of top features to return based on their absolute feature strength.
 
@@ -33,10 +33,10 @@ def prep_feature_impact(
         feature strength in ascending order.
     """
 
-    df = df.groupby("feature_name")["feature_strength"].apply(
+    df = df.groupby("feature_name")["strength"].apply(
         lambda x: np.abs(x).sum()
     )
-    df_subset = df.reset_index().sort_values(by="feature_strength", ascending=True)[-n:]
+    df_subset = df.reset_index().sort_values(by="strength", ascending=True)[-n:]
 
     return df_subset
 
@@ -53,7 +53,7 @@ def plot_feature_impact(
     Parameters
     ----------
     df : pd.DataFrame
-        Input DataFrame containing 'feature_name' and 'feature_strength' columns.
+        Input DataFrame containing 'feature_name' and 'strength' columns.
     n : int, optional, default=25
         Number of top features to plot based on their absolute feature strength.
     title : str, optional, default="<b>Feature Impact<b>"
@@ -74,7 +74,7 @@ def plot_feature_impact(
     fig = px.bar(
         df_subset,
         y="feature_name",
-        x="feature_strength",
+        x="strength",
         orientation="h",
         height=height,
     )
@@ -83,14 +83,14 @@ def plot_feature_impact(
     )
 
     fig.update_layout(
-        title={"text": f"{title}"},
+        #title={"text": f"{title}"},
         hoverlabel=DEFAULT_HOVER_LABEL,
     )
 
     fig.update_yaxes({
         'title': "Feature Name",
         'tickvals': list(range(len(df_subset['feature_name']))),
-        'ticktext': df_subset['feature_name'].str.slice(0,30).tolist(),
+        'ticktext': df_subset['feature_name'].str.slice(0,35).tolist(),
     })
 
     fig.update_xaxes(title="Impact")
@@ -110,7 +110,7 @@ def plot_signed_feature_impact(
     Parameters
     ----------
     df : pandas.DataFrame
-        Input DataFrame containing 'feature_name' and 'feature_strength' columns.
+        Input DataFrame containing 'feature_name' and 'strength' columns.
     n : int, optional (default=25)
         The number of features to plot based on their absolute feature strength.
     title : str, optional (default="<b>Feature Impact</b>")
@@ -127,23 +127,25 @@ def plot_signed_feature_impact(
     Raises
     ------
     ValueError
-        If the input DataFrame doesn't contain the 'feature_name' and 'feature_strength' columns.
+        If the input DataFrame doesn't contain the 'feature_name' and 'strength' columns.
 
     """
     df = df.copy()
 
     df["positive_strength"] = np.where(
-        df["feature_strength"] >= 0, "positive", "negative"
+        df["strength"] >= 0, "positive", "negative"
     )
     df = (
-        df.groupby(["feature_name", "positive_strength"])["feature_strength"]
+        df.groupby(["feature_name", "positive_strength"])["strength"]
         .apply(lambda x: np.abs(x).sum())
         .reset_index()
     )
-    df["abs_strength"] = df.groupby("feature_name")["feature_strength"].transform(
+    df["abs_strength"] = df.groupby("feature_name")["strength"].transform(
         lambda x: np.abs(x).sum()
     )
-    strength_index = dict(df.groupby("feature_name")["abs_strength"].sum())
+    strength_index = dict(
+        df.groupby("feature_name")["abs_strength"].sum()
+    )
 
     names_df = pd.DataFrame(
         list(product(df.feature_name.unique(), ["positive", "negative"])),
@@ -204,7 +206,7 @@ def plot_signed_feature_impact(
     )
 
     fig.update_layout(
-        title={"text": f"{title}"},
+        #title={"text": f"{title}"},
         hoverlabel=DEFAULT_HOVER_LABEL,
     )
     fig.update_yaxes({
@@ -213,5 +215,9 @@ def plot_signed_feature_impact(
         'ticktext': x_pos['feature_name'].str.slice(0,35).tolist(),
     })
     fig.update_xaxes(title="Impact")
+
+    fig.update_traces(
+        hovertemplate="<b>Feature Name:</b> %{y} <br><b>Feature Strength:</b> %{x}<extra></extra>"
+    )
 
     return fig
