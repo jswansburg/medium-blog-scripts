@@ -27,11 +27,8 @@ def get_column_name_mappings(project_id) -> dict:
         }
     else:
         name_mappings = {
-            # f"{target}_{positive_class}_PREDICTION": "Class_1_Prediction",
-            # f"{target}_PREDICTION": "Prediction",
             f"class_{positive_class}"
         }
-
     return name_mappings
 
 
@@ -266,6 +263,12 @@ def prep_and_plot_pe_over_time(
         max_features=max_features,
     )
 
-    fig = plot_pe_over_time(a, b, date_col, showlegend=showlegend, height=height)
+    fig = plot_pe_over_time(
+        a, 
+        b, 
+        date_col, 
+        showlegend=showlegend, 
+        height=height
+    )
 
     return fig

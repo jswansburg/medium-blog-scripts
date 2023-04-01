@@ -130,8 +130,6 @@ def plot_signed_feature_impact(
         If the input DataFrame doesn't contain the 'feature_name' and 'strength' columns.
 
     """
-    df = df.copy()
-
     df["positive_strength"] = np.where(
         df["strength"] >= 0, "positive", "negative"
     )

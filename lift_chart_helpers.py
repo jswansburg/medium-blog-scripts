@@ -25,8 +25,6 @@ def get_column_name_mappings(project_id) -> dict:
         }
     else:
         name_mappings = {
-            # f"{target}_{positive_class}_PREDICTION": "Class_1_Prediction",
-            # f"{target}_PREDICTION": "Prediction",
             f"class_{positive_class}"
         }
 
@@ -61,7 +59,6 @@ def add_bins_to_data(
         duplicates="drop",
     )
     mean = lambda x: np.average(x)
-
     func = {col: mean, "actuals": mean}
 
     return df, func
@@ -258,7 +255,6 @@ def get_prediction_explanations_per_bin(
 
 def plot_prediction_explanations_and_lift_chart(
     df: pd.DataFrame,
-    # grouped_df: pd.DataFrame,
     project_id: str,
     bins: int=10,
     max_features: int=5,
