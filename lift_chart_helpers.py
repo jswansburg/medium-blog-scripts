@@ -6,6 +6,9 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 
+DEFAULT_HOVER_LABEL = dict(
+    bgcolor="white", font_size=16, font_family="Rockwell", namelength=-1
+)
 
 def get_column_name_mappings(project_id) -> dict:
     """
@@ -35,7 +38,6 @@ def add_bins_to_data(
     project_id: str,
     df: pd.DataFrame,
     bins: int = 10,
-    data_subset: str = dr.enums.DATA_SUBSET.HOLDOUT,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -44,7 +46,6 @@ def add_bins_to_data(
     Args:
         df (pd.DataFrame): The input DataFrame.
         bins (int, optional): The number of bins to create. Defaults to 10.
-        data_subset (str, optional): The data subset to use. Defaults to dr.enums.DATA_SUBSET.HOLDOUT.
 
     Returns:
         pd.DataFrame: The modified DataFrame with bins added.
@@ -102,6 +103,9 @@ def group_data_by_bins(
 
 def plot_lift_chart(
     df: pd.DataFrame,
+    project_id: str,
+    bins: int=10,
+    height: int=600,
 ) -> go.Figure:
     """
     Plots a lift chart using a DataFrame with grouped data by bins.
@@ -116,7 +120,10 @@ def plot_lift_chart(
     """
 
     # Get the column name for the prediction values
-    col = list(column_name_mappings.values())[0]
+    col = list(get_column_name_mappings(project_id))[0]
+
+    binned, func = add_bins_to_data(project_id, df, bins=bins)
+    df = group_data_by_bins(binned, project_id, func)
 
     # Create the figure object
     fig = go.Figure()
@@ -169,23 +176,46 @@ def plot_lift_chart(
 
     # Update the layout of the figure
     fig.update_layout(
-        title={
-            "text": f"<b>Lift Chart</b>",
-            "y": 0.9,
-            "x": 0.5,
-            "xanchor": "center",
-            "yanchor": "top",
-        },
+        # title={
+        #     "text": f"<b>Lift Chart</b>",
+        #     "y": 0.9,
+        #     "x": 0.5,
+        #     "xanchor": "center",
+        #     "yanchor": "top",
+        # },
         legend=dict(
             bgcolor="rgba(255, 255, 255, 0)",
             bordercolor="rgba(255, 255, 255, 0)",
+            x=1.1,
+            y=1,
+            xanchor='left',
+            yanchor='top',
         ),
-        legend_title=f"Data: ",
+        #legend_title=f"Data: ",
+        hoverlabel=DEFAULT_HOVER_LABEL,
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=height,
     )
 
     # Update the y-axis and x-axis titles
-    fig.update_yaxes(title=f"Average Target")
-    fig.update_xaxes(title=f"Bins")
+    fig.update_yaxes(
+        title=f"Average Target",
+        showline=True, 
+        linewidth=1, 
+        linecolor='black',
+        showgrid=True, 
+        gridwidth=1, 
+        gridcolor='lightgray',
+        zeroline=False,
+        zerolinewidth=2, 
+        zerolinecolor='black',
+    )
+    fig.update_xaxes(
+        title=f"Bins",
+        showline=True, 
+        linewidth=1, 
+        linecolor='black',
+    )
 
     return fig
 
@@ -277,10 +307,6 @@ def plot_prediction_explanations_and_lift_chart(
     binned, func = add_bins_to_data(project_id, df, bins=bins)
     df1 = group_data_by_bins(binned, project_id, func)
     df2 = get_prediction_explanations_per_bin(df, project_id, max_features=max_features)
-
-    DEFAULT_HOVER_LABEL = dict(
-        bgcolor="white", font_size=16, font_family="Rockwell", namelength=-1
-    )
     
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
@@ -323,7 +349,7 @@ def plot_prediction_explanations_and_lift_chart(
                 symbol="circle-open",
                 line=dict(
                     color="#ff7f0e",
-                    width=1,
+                    width=2,
                 ),
             ),
             line=dict(
@@ -344,6 +370,10 @@ def plot_prediction_explanations_and_lift_chart(
         legend=dict(
             bgcolor="rgba(255, 255, 255, 0)",
             bordercolor="rgba(255, 255, 255, 0)",
+            x=1.1,
+            y=1,
+            xanchor='left',
+            yanchor='top',
         ),
         legend_title="Features: ",
         hoverlabel=DEFAULT_HOVER_LABEL,
@@ -352,7 +382,10 @@ def plot_prediction_explanations_and_lift_chart(
     fig.update_xaxes(title=f"Bins")
     fig.update_layout(
         barmode="relative",
-        yaxis2={"title": "Average Prediction", "tickformat": ",.0%"},
+        yaxis2={
+            "title": "Average Prediction",
+            "tickformat": ",.0%"
+        },
     )
     
     # Add bins
@@ -386,14 +419,206 @@ def plot_prediction_explanations_and_lift_chart(
             )
         )
 
-    fig.update_yaxes(title="Feature Strength")
-    fig.update_xaxes(title="Bins")
+    fig.update_yaxes(
+        title="Feature Strength",
+        showline=True, 
+        linewidth=1, 
+        linecolor='black',
+        showgrid=True, 
+        gridwidth=1, 
+        gridcolor='lightgray',
+        zeroline=True,
+        zerolinewidth=2, 
+        zerolinecolor='black',
+    )
+    fig.update_xaxes(
+        title="Bins",
+        showline=True, 
+        linewidth=1, 
+        linecolor='black',
+    )
     fig.update_layout(
         yaxis2={"title": "Average Prediction", "tickformat": ",.0%"},
         height=600,
         legend_title="Features: ",
         hoverlabel=DEFAULT_HOVER_LABEL,
+        plot_bgcolor='rgba(0,0,0,0)',
     )
     fig.update_layout(showlegend=showlegend)
 
+    return fig
+
+
+def plot_histogram(
+    df: pd.DataFrame,
+    project_id: str,
+    feature: str,
+    bins: int=10,
+    cutoff: int=0.5,
+    split_by_predicted_class: bool=False,
+    showlegend: bool=False,
+    height: int=500,
+):
+    """
+    Plot a histogram of a feature with average predictions and actuals as overlayed scatter plots.
+    
+    Args:
+        df (pd.DataFrame): Input dataframe containing the data to be plotted.
+        project_id (str): DataRobot project ID.
+        feature (str): Feature column name to be plotted.
+        bins (int, optional): Number of bins for the bar plot. Defaults to 10.
+        cutoff (float, optional): Cutoff threshold for predicted class. Defaults to 0.5.
+        split_by_predicted_class (bool, optional): Whether to split the histogram by predicted class. Defaults to False.
+        showlegend (bool, optional): Whether to show the legend in the plot. Defaults to False.
+        height (int, optional): Height of the plot. Defaults to 500.
+        
+    Returns:
+        fig (plotly.graph_objects.Figure): A Plotly figure of the histogram with overlayed scatter plots.
+    """
+    if cutoff is not None:
+        assert 0 < cutoff < 1
+    
+    # Pull DataRobot project
+    project = dr.Project.get(project_id)
+    
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    target = project.target
+    
+    # Calculate average predictions per time period
+    col = list(get_column_name_mappings(project_id))[0]
+    
+    # Create bins for numerical features
+    if np.issubdtype(df[feature].dtype, np.number):
+        df["bins"] = pd.cut(df[feature], bins, duplicates='drop')
+        df["bins"] = df["bins"].apply(lambda x: f"({x.left}, {x.right}]")
+    # Create bins for categorical features
+    else:
+        unique_values = len(df[feature].unique())
+        top_bins = df[feature].value_counts()[0:bins-1].index.values
+        other_bin = df.loc[~df[feature].isin(top_bins), feature].unique()
+        df["bins"] = ['OTHER' if i in other_bin else i for i in df[feature]]
+
+    # Split histogram by predicted class if specified
+    if split_by_predicted_class:
+        negative_class = [
+            x for x in df[project.target].unique() if x != project.positive_class
+        ][0]
+
+        df["group"] = np.where(
+            df[col] >= cutoff, project.positive_class, negative_class
+        )
+        
+        # Aggregate data and calculate mean and count for each bin and group
+        df1 = (
+            df
+            .groupby(
+                ["bins","group"]
+            )[[feature, col, target]]
+            .agg(['mean','count'])
+            .reset_index()
+        )
+
+        df1.columns = df1.columns.map('_'.join)
+        df1.rename({
+            "bins_":"bins",
+            "group_":"group",
+            f"{col}_mean":"Average Prediction",
+            f"{target}_mean":"Average Actual",
+        }, axis=1, inplace=True)
+
+        for trace, color in zip(df1["group"].unique(),["lightblue","blue"]):
+            dft = df1[df1["group"] == trace]
+            fig.add_trace(
+                go.Bar(
+                    x=dft["bins"],
+                    y=dft[f"{target}_count"],
+                    name=str(trace),
+                    marker_color=color,
+                    opacity=0.7,
+                )
+            )
+    else:
+        # Aggregate data and calculate mean and count for each bin
+        df1 = (
+            df
+            .groupby(
+                ["bins"]
+            )[[feature, col,target]]
+            .agg(['mean','count'])
+            .reset_index()
+        )
+
+        df1.columns = df1.columns.map('_'.join)
+        df1.rename({
+            "bins_":"bins",
+            f"{col}_mean":"Average Prediction",
+            f"{target}_mean":"Average Actual",
+        }, axis=1, inplace=True)
+
+        fig.add_trace(
+            go.Bar(
+                x=df1["bins"],
+                y=df1[f"{target}_count"],
+                name="Count",
+                marker_color="lightblue",
+                opacity=0.5,
+            )
+        )
+
+        # Add predictions and actuals as overlayed scatter plots
+        for trace, color, symbol in zip(
+            ["Average Prediction","Average Actual"],
+            ["blue","#ff7f0e"],
+            ["cross-open","circle-open"],
+        ):
+            fig.add_trace(
+                go.Scatter(
+                    x=df1["bins"],
+                    y=df1[trace],
+                    mode="lines+markers",
+                    name=trace,
+                    marker=dict(
+                        size=5,
+                        color=color,
+                        symbol=symbol,
+                        line=dict(
+                            color=color,
+                            width=2,
+                        ),
+                    ),
+                    line=dict(
+                        color=color,
+                        width=2,
+                    ),
+                ),
+                secondary_y=True,
+            )
+    # Update y-axis and x-axis properties
+    fig.update_yaxes(
+        title="Frequency",
+        showline=True, 
+        linewidth=1, 
+        linecolor='black',
+        showgrid=True, 
+        gridwidth=1, 
+        gridcolor='lightgray',
+    )
+    fig.update_xaxes(
+        title=feature,
+        showline=True, 
+        linewidth=1, 
+        linecolor='black',
+    )
+    fig.update_layout( 
+        legend_title="",
+        yaxis2={
+            "title": "Average Prediction",
+            "tickformat": ",.0%"
+        },
+        height=height,
+        hoverlabel=DEFAULT_HOVER_LABEL,
+        plot_bgcolor='rgba(0,0,0,0)',
+        showlegend=showlegend,
+    )
+    
     return fig

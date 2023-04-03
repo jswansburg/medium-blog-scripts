@@ -142,7 +142,6 @@ def plot_pe_over_time(
         The plotly figure object containing the plot.
 
     """
-
     # Create subplot
     fig = make_subplots(
         specs=[[{"secondary_y": True}]]
@@ -203,8 +202,27 @@ def plot_pe_over_time(
         )
 
     # Update axes and layout
-    fig.update_yaxes(title="Normalized Feature Strength")
-    fig.update_xaxes(title="Date")
+    fig.update_yaxes(
+        title="Normalized Feature Strength",
+        showline=True, 
+        linewidth=1, 
+        linecolor='black',
+        showgrid=True, 
+        gridwidth=0.1, 
+        gridcolor='lightgray',
+        zeroline=True,
+        zerolinewidth=2, 
+        zerolinecolor='black',
+    )
+    fig.update_xaxes(
+        title="Date",
+        showline=True, 
+        linewidth=1, 
+        linecolor='black',
+        showgrid=False, 
+        gridwidth=1, 
+        gridcolor='#7f7f7f',
+    )
     fig.update_layout(
         yaxis2={
             "title": "Average Prediction", 
@@ -219,6 +237,7 @@ def plot_pe_over_time(
         ),
         showlegend=showlegend, 
         height=height,
+        plot_bgcolor='rgba(0,0,0,0)',
     )
 
     return fig
@@ -272,3 +291,208 @@ def prep_and_plot_pe_over_time(
     )
 
     return fig
+
+def plot_values_over_time(
+    df,
+    project_id,
+    feature,
+    date_col, 
+    freq, 
+    height: int=500,
+    showlegend: bool=False,
+):
+    """
+    Plot the distribution of a feature over time, either as a bar chart (for categorical features)
+    or as a line chart (for numerical features) showing percentiles and mean.
+    
+    Args:
+        df (pd.DataFrame): Input dataframe containing the data to be plotted.
+        target (str): Target column name.
+        date_col (str): Date column name.
+        freq (str): Frequency for resampling (e.g., 'M' for month, 'Q' for quarter, 'Y' for year).
+        feature (str): Feature column name to be plotted.
+        
+    Returns:
+        fig (plotly.graph_objects.Figure): A Plotly figure of the distribution of the feature over time.
+    """
+    mapping = {
+        'H':'H',
+        'W':'W',
+        'MS':'M',
+        'M':'M',
+        'QS':'Q',
+        'Q':'Q',
+        'YS':'Y',
+        'Y':'Y',
+    }
+    freq = mapping[freq]
+    
+    # Convert date column to datetime and create an 'index' column with resampled date periods
+    df[date_col] = pd.to_datetime(df[date_col])
+    df["index"] = (
+        pd.Series(df[date_col].dt.to_period(freq).sort_values())
+        .astype(str)
+        .reset_index(drop=True)
+    )
+    
+    # Create subplot
+    fig = make_subplots(
+        specs=[[{"secondary_y": True}]]
+    )
+
+    # Calculate average predictions per time period
+    pred_col = list(get_column_name_mappings(project_id))[0]
+    
+    scatterplot_data = (
+        df[["index", pred_col]]
+        .groupby("index")
+        .mean()
+        .reset_index()
+        .rename({pred_col: "Average Prediction"}, axis=1)
+    )
+        
+    # Add scatter plot for average prediction
+    fig.add_trace(
+        go.Scatter(
+            x=scatterplot_data["index"],
+            y=scatterplot_data["Average Prediction"],
+            name="Average Prediction",
+            mode="lines+markers",
+            marker=dict(
+                color="Black",
+                size=6,
+            ),
+        ),
+        secondary_y=True,
+    )
+    
+    # Check if the feature is numerical
+    if np.issubdtype(df[feature].dtype, np.number):
+        df[date_col] = pd.to_datetime(df[date_col])
+        
+        # Resample and calculate percentiles and mean
+        resampled = (
+            df[[feature, "index"]]
+            .groupby("index")
+            .agg({
+                feature: [
+                    lambda x: np.percentile(x, 25),
+                    lambda x: np.percentile(x, 50),
+                    lambda x: np.mean(x),
+                    lambda x: np.percentile(x, 75),
+                ]
+            }).reset_index()
+        )
+        resampled.columns = [date_col, '25th Percentile', '50th Percentile', 'Average', '75th Percentile']
+        
+        # Configure traces and styles for the line chart
+        traces = ['25th Percentile', '50th Percentile', 'Average', '75th Percentile']
+        colors = ['lightblue', 'blue', 'blue', 'lightblue']
+        line_type = [None, None, 'dash', None]
+        
+        # Create the line chart
+        for trace, color, line_type in zip(traces, colors, line_type):
+            fig.add_trace(
+                go.Scatter(
+                    x=resampled[date_col],
+                    y=resampled[trace],
+                    mode='lines+markers',
+                    name=trace,
+                    line=dict(dash=line_type, width=3),
+                    line_color=color,
+                )
+            )
+            fig.update_yaxes(
+                title=f"{feature}",
+                showline=True, 
+                linewidth=1, 
+                linecolor='black',
+                showgrid=True, 
+                gridwidth=1, 
+                gridcolor='lightgray',
+            )
+            fig.update_xaxes(
+                title="Date",
+                showline=True, 
+                linewidth=1, 
+                linecolor='black',
+            )
+            fig.update_layout(
+                legend=dict(
+                    bgcolor="rgba(255, 255, 255, 0)",
+                    bordercolor="rgba(255, 255, 255, 0)",
+                    x=1.1,
+                    y=1,
+                    xanchor='left',
+                    yanchor='top',
+                ),
+                yaxis2={
+                    "title": "Average Prediction", 
+                    "tickformat": ",.0%"
+                },
+                height=height,
+                #title=f"Distribution of {feature.lower()} over time",
+                plot_bgcolor='rgba(0,0,0,0)',
+                showlegend=showlegend,
+                hoverlabel=DEFAULT_HOVER_LABEL,
+            )
+        return fig
+    else:
+        # Calculate the count and percentage for each category of the feature
+        df = (
+            df.groupby("index")[feature]
+            .apply(lambda x: x.value_counts())
+            .reset_index()
+            .rename({"level_1": feature, feature: "count"}, axis=1)
+        )
+        df["total"] = df.groupby("index")["count"].transform("sum")
+        df["percentage"] = df["count"] / df["total"]
+
+        fig.update_layout(barmode="relative")
+        for i, trace in enumerate(df[feature].unique()):
+            dft = df[df[feature] == trace]
+            fig.add_traces(
+                go.Bar(
+                    x=dft["index"],
+                    y=dft["percentage"],
+                    name=trace,
+                    #marker_color=marker_color[trace],
+                    opacity=0.5,
+                )
+            )
+
+        fig.update_yaxes(
+            title=f"{feature} (Percentage)",
+            showline=True, 
+            linewidth=1, 
+            linecolor='black',
+            showgrid=True, 
+            gridwidth=1, 
+            gridcolor='lightgray',
+        )
+        fig.update_xaxes(
+            title="Date",
+            showline=True, 
+            linewidth=1, 
+            linecolor='black',
+        )
+        fig.update_layout(
+            legend=dict(
+                bgcolor="rgba(255, 255, 255, 0)",
+                bordercolor="rgba(255, 255, 255, 0)",
+                x=1.1,
+                y=1,
+                xanchor='left',
+                yanchor='top',
+            ),
+            yaxis2={
+                "title": "Average Prediction", 
+                "tickformat": ",.0%"
+            },
+            height=height,
+            #title=f"Distribution of {feature.lower()} over time",
+            plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=showlegend,
+            hoverlabel=DEFAULT_HOVER_LABEL,
+        )
+        return fig

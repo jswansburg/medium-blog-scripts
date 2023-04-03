@@ -84,16 +84,26 @@ def plot_feature_impact(
 
     fig.update_layout(
         #title={"text": f"{title}"},
+        plot_bgcolor='rgba(0,0,0,0)',
         hoverlabel=DEFAULT_HOVER_LABEL,
     )
 
     fig.update_yaxes({
         'title': "Feature Name",
         'tickvals': list(range(len(df_subset['feature_name']))),
-        'ticktext': df_subset['feature_name'].str.slice(0,35).tolist(),
-    })
+        'ticktext': df_subset['feature_name'].str.slice(0,45).tolist(),
+        },
+        showline=True, 
+        linewidth=2, 
+        linecolor='black',
+    )
 
-    fig.update_xaxes(title="Impact")
+    fig.update_xaxes(
+        title="Impact",
+        showline=True, 
+        linewidth=2, 
+        linecolor='black',
+    )
 
     return fig
 
@@ -205,14 +215,24 @@ def plot_signed_feature_impact(
 
     fig.update_layout(
         #title={"text": f"{title}"},
+        plot_bgcolor='rgba(0,0,0,0)',
         hoverlabel=DEFAULT_HOVER_LABEL,
     )
     fig.update_yaxes({
         'title': "Feature Name",
         'tickvals': list(range(len(x_pos['feature_name']))),
-        'ticktext': x_pos['feature_name'].str.slice(0,35).tolist(),
-    })
-    fig.update_xaxes(title="Impact")
+        'ticktext': x_pos['feature_name'].str.slice(0,45).tolist(),
+        },
+        showline=True, 
+        linewidth=2, 
+        linecolor='black',
+    )
+    fig.update_xaxes(
+        title="Impact",
+        showline=True, 
+        linewidth=2, 
+        linecolor='black',
+    )
 
     fig.update_traces(
         hovertemplate="<b>Feature Name:</b> %{y} <br><b>Feature Strength:</b> %{x}<extra></extra>"
