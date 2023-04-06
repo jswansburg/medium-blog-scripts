@@ -123,7 +123,7 @@ def plot_lift_chart(
     col = list(get_column_name_mappings(project_id))[0]
 
     binned, func = add_bins_to_data(project_id, df, bins=bins)
-    df = group_data_by_bins(binned, project_id, func)
+    df = group_data_by_bins(binned, project_id, func, bins=bins)
 
     # Create the figure object
     fig = go.Figure()
@@ -223,7 +223,8 @@ def plot_lift_chart(
 def get_prediction_explanations_per_bin(
     df: pd.DataFrame,
     project_id: str,
-    max_features: int = 5,
+    max_features: int=5,
+    bins: int=10,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -252,7 +253,7 @@ def get_prediction_explanations_per_bin(
     features_to_keep = ranked_features[-max_features:]["feature_name"]
     
     # Add bins to the data
-    binned_data, _ = add_bins_to_data(project_id, df, bins=10, **kwargs)
+    binned_data, _ = add_bins_to_data(project_id, df, bins=bins, **kwargs)
 
     # Define a function to compute the median if possible, otherwise return the mode
     def try_mean_else_mode(x):
@@ -305,8 +306,8 @@ def plot_prediction_explanations_and_lift_chart(
         plotly.graph_objs.Figure: The generated Plotly figure.
     """
     binned, func = add_bins_to_data(project_id, df, bins=bins)
-    df1 = group_data_by_bins(binned, project_id, func)
-    df2 = get_prediction_explanations_per_bin(df, project_id, max_features=max_features)
+    df1 = group_data_by_bins(binned, project_id, func, bins=bins)
+    df2 = get_prediction_explanations_per_bin(df, project_id, max_features=max_features, bins=bins)
     
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     

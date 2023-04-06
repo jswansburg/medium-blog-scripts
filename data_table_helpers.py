@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import colors
 import matplotlib.pyplot as plt
+import pandas.io.formats.style
 
 
 def pivot_melted_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -47,7 +48,6 @@ def extract_colors(
         return [colors.rgb2hex(x) for x in plt.cm.get_cmap(cmap)(normed)]
 
 
-
 def prep_data_table(
     df: pd.DataFrame, 
     sample: int = 500
@@ -64,7 +64,7 @@ def prep_data_table(
     """
     table_data = (
         df.drop_duplicates(["row_id"])
-        .drop(columns=["feature_name", "strength", "actual_value"], axis=1)
+        .drop(columns=["feature_name", "strength"], axis=1)
         .sort_values(by="row_id")
         .reset_index(drop=True)
         .set_index("row_id")
@@ -108,8 +108,8 @@ def plot_overlaid_prediction_explanations(
 
     df_with_colors = (
         table_data.style.background_gradient(
-            cmap="seismic", axis=None, vmin=-1, vmax=1, subset=None
-        ).apply(lambda x: gmap, axis=None)
+            cmap="seismic", axis=None, vmin=-1, vmax=1, gmap=gmap
+        )
     )
 
     return df_with_colors
