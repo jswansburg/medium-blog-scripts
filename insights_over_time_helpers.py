@@ -294,10 +294,11 @@ def prep_and_plot_pe_over_time(
 
 def plot_values_over_time(
     df,
-    project_id,
-    feature,
-    date_col, 
-    freq, 
+    project_id: str,
+    feature: str,
+    date_col: str, 
+    freq: str='QS',
+    class_type: str='actuals',
     height: int=500,
     showlegend: bool=False,
 ):
@@ -307,10 +308,12 @@ def plot_values_over_time(
     
     Args:
         df (pd.DataFrame): Input dataframe containing the data to be plotted.
-        target (str): Target column name.
-        date_col (str): Date column name.
-        freq (str): Frequency for resampling (e.g., 'M' for month, 'Q' for quarter, 'Y' for year).
+        project_id (str): DataRobot project ID.
         feature (str): Feature column name to be plotted.
+        date_col (str): Date column name.
+        freq (str, optional): Frequency for resampling (e.g., 'M' for month, 'Q' for quarter, 'Y' for year).
+        class_type (str, optional): Whether to display the predicted or actual class labels. Defautls to actual.
+        height (int, optional): Height of the plot. Defaults to 500.
         
     Returns:
         fig (plotly.graph_objects.Figure): A Plotly figure of the distribution of the feature over time.
@@ -330,7 +333,7 @@ def plot_values_over_time(
     # Convert date column to datetime and create an 'index' column with resampled date periods
     df[date_col] = pd.to_datetime(df[date_col])
     df["index"] = (
-        pd.Series(df[date_col].dt.to_period(freq).sort_values())
+        pd.Series(df[date_col].dt.to_period(freq))
         .astype(str)
         .reset_index(drop=True)
     )
@@ -342,13 +345,18 @@ def plot_values_over_time(
 
     # Calculate average predictions per time period
     pred_col = list(get_column_name_mappings(project_id))[0]
+
+    df["index"] = pd.to_datetime(df["index"])
     
+    target = dr.Project.get(project_id).target
+    col = pred_col if class_type=='predictions' else target
+
     scatterplot_data = (
-        df[["index", pred_col]]
+        df[["index", col]]
         .groupby("index")
         .mean()
         .reset_index()
-        .rename({pred_col: "Average Prediction"}, axis=1)
+        .rename({col: "Average Prediction"}, axis=1)
     )
         
     # Add scatter plot for average prediction
@@ -356,7 +364,7 @@ def plot_values_over_time(
         go.Scatter(
             x=scatterplot_data["index"],
             y=scatterplot_data["Average Prediction"],
-            name="Average Prediction",
+            name=f"Average {class_type.capitalize()}",
             mode="lines+markers",
             marker=dict(
                 color="Black",
@@ -427,7 +435,7 @@ def plot_values_over_time(
                     yanchor='top',
                 ),
                 yaxis2={
-                    "title": "Average Prediction", 
+                    "title": f"Average {class_type.capitalize()}", 
                     "tickformat": ",.0%"
                 },
                 height=height,
@@ -486,7 +494,7 @@ def plot_values_over_time(
                 yanchor='top',
             ),
             yaxis2={
-                "title": "Average Prediction", 
+                "title": f"Average {class_type.capitalize()}", 
                 "tickformat": ",.0%"
             },
             height=height,

@@ -456,7 +456,8 @@ def plot_histogram(
     feature: str,
     bins: int=10,
     cutoff: int=0.5,
-    split_by_predicted_class: bool=False,
+    split_by_class: bool=False,
+    class_type: str='actuals',
     showlegend: bool=False,
     height: int=500,
 ):
@@ -469,7 +470,8 @@ def plot_histogram(
         feature (str): Feature column name to be plotted.
         bins (int, optional): Number of bins for the bar plot. Defaults to 10.
         cutoff (float, optional): Cutoff threshold for predicted class. Defaults to 0.5.
-        split_by_predicted_class (bool, optional): Whether to split the histogram by predicted class. Defaults to False.
+        split_by_class (bool, optional): Whether to split the histogram by class lables. Defaults to False.
+        class_type (str, optional): Whether to display the predicted or actual class labels. Defautls to actual.
         showlegend (bool, optional): Whether to show the legend in the plot. Defaults to False.
         height (int, optional): Height of the plot. Defaults to 500.
         
@@ -478,6 +480,7 @@ def plot_histogram(
     """
     if cutoff is not None:
         assert 0 < cutoff < 1
+    assert class_type in ['actuals','predictions'], "class_type must be set to either actuals or predictions"
     
     # Pull DataRobot project
     project = dr.Project.get(project_id)
@@ -500,14 +503,17 @@ def plot_histogram(
         df["bins"] = ['OTHER' if i in other_bin else i for i in df[feature]]
 
     # Split histogram by predicted class if specified
-    if split_by_predicted_class:
+    if split_by_class:
         negative_class = [
             x for x in df[project.target].unique() if x != project.positive_class
         ][0]
 
-        df["group"] = np.where(
-            df[col] >= cutoff, project.positive_class, negative_class
-        )
+        if class_type=='predictions':
+            df["group"] = np.where(
+                df[col] >= cutoff, project.positive_class, negative_class
+            )
+        else:
+            df["group"] = df[target]
         
         # Aggregate data and calculate mean and count for each bin and group
         df1 = (
@@ -611,7 +617,6 @@ def plot_histogram(
         linecolor='black',
     )
     fig.update_layout( 
-        legend_title="",
         yaxis2={
             "title": "Average Prediction",
             "tickformat": ",.0%"
