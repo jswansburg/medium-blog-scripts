@@ -30,7 +30,6 @@ def get_column_name_mappings(project_id) -> dict:
         name_mappings = {
             f"class_{positive_class}"
         }
-
     return name_mappings
 
 
@@ -209,6 +208,7 @@ def plot_lift_chart(
         zeroline=False,
         zerolinewidth=2, 
         zerolinecolor='black',
+        tickformat=",.0%",
     )
     fig.update_xaxes(
         title=f"Bins",
@@ -490,6 +490,8 @@ def plot_histogram(
     
     # Calculate average predictions per time period
     col = list(get_column_name_mappings(project_id))[0]
+
+    bins = min(bins, len(df[feature].unique()))
     
     # Create bins for numerical features
     if np.issubdtype(df[feature].dtype, np.number):
@@ -625,6 +627,7 @@ def plot_histogram(
         hoverlabel=DEFAULT_HOVER_LABEL,
         plot_bgcolor='rgba(0,0,0,0)',
         showlegend=showlegend,
+        legend_title=f"{class_type.capitalize()}",
     )
     
     return fig

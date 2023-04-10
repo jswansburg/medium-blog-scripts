@@ -477,6 +477,7 @@ def plot_values_over_time(
             showgrid=True, 
             gridwidth=1, 
             gridcolor='lightgray',
+            tickformat=",.0%",
         )
         fig.update_xaxes(
             title="Date",
